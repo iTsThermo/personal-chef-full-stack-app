@@ -1,0 +1,29 @@
+{
+  "name": "personal-cook",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "private": true,
+  "scripts": {
+    "dev-website": "pnpm --filter website dev",
+    "dev-node": "pnpm --filter node dev",
+    "dev": "concurrently -n \"client,server\" \"pnpm run dev-website\" \"pnpm run dev-node\"",
+    "test:all": "pnpm -r test",
+    "build:all": "pnpm --filter \"website\" --filter \"node\" run build",
+    "build:website": "pnpm --filter website run build",
+    "build:node": "pnpm --filter node run build",
+    "start:all": "concurrently \"pnpm --filter website preview\" \"pnpm --filter node start\"",
+    "list-packages": "pnpm list -r --depth=-1"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.15.0",
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

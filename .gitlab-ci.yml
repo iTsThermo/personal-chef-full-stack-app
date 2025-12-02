@@ -1,0 +1,143 @@
+stages:
+  - build
+  - test
+  - deploy
+
+variables:
+  NODE_IMAGE: node:18.17.1
+  PNPM_VERSION: "10.15.0"
+
+# Cache configuration for better performance
+cache:
+  key: 
+    files:
+      - pnpm-lock.yaml
+  paths:
+    - .pnpm-store/
+
+before_script:
+  - echo "Installing pnpm..."
+  - npm install -g pnpm@$PNPM_VERSION
+  - pnpm config set store-dir .pnpm-store
+  - echo "Installing dependencies..."
+  - pnpm install --frozen-lockfile
+
+# ------------------------------------
+# --- Build Jobs ---
+# ------------------------------------
+build_all:
+  stage: build
+  image: $NODE_IMAGE
+  script:
+    - echo "Building all apps..."
+    - pnpm run build:all
+  artifacts:
+    paths:
+      - apps/website/dist/
+      - apps/node/dist/
+    expire_in: 1 hour
+  rules:
+    - changes:
+      - apps/**/*
+      - packages/**/*
+      - package.json
+      - pnpm-lock.yaml
+
+# Separate build jobs if you need them to run independently
+build_node_app:
+  stage: build
+  image: $NODE_IMAGE
+  script:
+    - echo "Generating Prisma client..."
+    - pnpm --filter node run prisma:generate
+    - echo "Building Node.js app..."
+    - pnpm --filter node run build
+  artifacts:
+    paths:
+      - apps/node/dist/
+    expire_in: 1 hour
+  rules:
+    - changes:
+      - apps/node/**/*
+      - packages/**/*
+      - package.json
+      - pnpm-lock.yaml
+
+build_website_app:
+  stage: build
+  image: $NODE_IMAGE
+  script:
+    - echo "Building Website app..."
+    - pnpm --filter website run build
+  artifacts:
+    paths:
+      - apps/website/dist/
+    expire_in: 1 hour
+  rules:
+    - changes:
+      - apps/website/**/*
+      - packages/**/*
+      - package.json
+      - pnpm-lock.yaml
+
+# ------------------------------------
+# --- Test Jobs ---
+# ------------------------------------
+test_all:
+  stage: test
+  image: $NODE_IMAGE
+  script:
+    - echo "Running all tests..."
+    - pnpm run test:all
+  needs:
+    - job: build_all
+      optional: true  # Add this line
+  rules:
+    - changes:
+      - apps/**/*
+      - packages/**/*
+      - package.json
+      - pnpm-lock.yaml
+
+test_node_app:
+  stage: test
+  image: $NODE_IMAGE
+  script:
+    - echo "Testing Node.js app..."
+    - pnpm --filter node test
+  needs:
+    - build_node_app
+  rules:
+    - changes:
+      - apps/node/**/*
+      - packages/**/*
+  allow_failure: false
+
+test_website_app:
+  stage: test
+  image: $NODE_IMAGE
+  script:
+    - echo "Testing Website app..."
+    - pnpm --filter website test
+  needs:
+    - build_website_app
+  rules:
+    - changes:
+      - apps/website/**/*
+      - packages/**/*
+  allow_failure: false
+
+# ------------------------------------
+# --- Deploy Jobs ---
+# ------------------------------------
+deploy_production:
+  stage: deploy
+  image: $NODE_IMAGE
+  script:
+    - echo "Deploying to production..."
+  needs:
+    - job: test_all
+      optional: true  # Mark the dependency as optional
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  when: manual
